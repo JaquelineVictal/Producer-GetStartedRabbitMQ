@@ -1,26 +1,29 @@
-import { Injectable } from '@nestjs/common';
-import { CreatePublisherDto } from './dto/create-publisher.dto';
-import { UpdatePublisherDto } from './dto/update-publisher.dto';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Channel, connect } from 'amqplib';
+import { QueueEnum } from 'src/queue.enum';
+import { PublishConfig } from './entities/publisher.entity';
 
 @Injectable()
-export class PublisherService {
-  create(createPublisherDto: CreatePublisherDto) {
-    return 'This action adds a new publisher';
+export class PublisherService implements OnModuleInit {
+  private channel: Channel;
+  async onModuleInit() {
+    const connection = await connect(process.env.HOST);
+    this.channel = await connection.createChannel();
+    await this.createAllQueues();
   }
-
-  findAll() {
-    return `This action returns all publisher`;
+  private async createAllQueues() {
+    for (const queueName of Object.values(QueueEnum)) {
+      await this.channel.assertQueue(queueName, {
+        arguments: {
+          'x-message-deduplication': true,
+        },
+      });
+    }
   }
+  public async publish(options: PublishConfig): Promise<boolean> {
+    const data = JSON.stringify(options.data);
+    const buffer = Buffer.from(data);
 
-  findOne(id: number) {
-    return `This action returns a #${id} publisher`;
-  }
-
-  update(id: number, updatePublisherDto: UpdatePublisherDto) {
-    return `This action updates a #${id} publisher`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} publisher`;
+    return this.channel.publish('', options.queueName, buffer);
   }
 }
