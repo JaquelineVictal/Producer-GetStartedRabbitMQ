@@ -13,6 +13,5 @@ export class OrderService {
       queueName: QueueEnum.ORDER,
     };
     await this.publisherService.publish(publishConfig);
-    console.log(newOrder);
   }
 }
